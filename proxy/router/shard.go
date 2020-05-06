@@ -379,3 +379,40 @@ func (s *GlobalTableShard) FindForKey(key interface{}) (int, error) {
 func NewGlobalTableShard() *GlobalTableShard {
 	return &GlobalTableShard{}
 }
+
+// 十荟团订单分片
+type ShtOrderShard struct {
+	DateMonthShard
+	SiteToSlice map[int]int // {1:0,2:0,3:0,4:1,5:1,6:1}
+}
+
+func (s *ShtOrderShard) FindForKey(key interface{}) (int, error) {
+	var orderTimestamp,orderSite int
+	//var orderMark int
+
+	snowflakeEpoch := uint64(1454052772000)
+	timeShift := uint(22)
+	nodeShift := uint(17)
+	siteShift := uint(6)
+	//markShift := uint(5)
+
+	switch val := key.(type) {
+	case uint64:
+	case int64:
+		orderTimestamp = int((uint64(val>>timeShift) + snowflakeEpoch) / 1000)
+		orderSite = int((val >> siteShift) - ((val >> nodeShift) << (nodeShift - siteShift)))
+		//orderMark = int((val >> markShift) - ((val >> siteShift) << (siteShift - markShift)))
+
+	default:
+		return -1, NewKeyError("Illegal sht orderid")
+	}
+
+	yearMonth, _ := s.getNumYearMonth(orderTimestamp)
+
+	slice,ok := s.SiteToSlice[orderSite];
+	if !ok {
+		return -1, NewKeyError("Illegal `slice_to_site` config")
+	}
+
+	return strconv.Atoi(strconv.Itoa(yearMonth) + strconv.Itoa(slice))
+}

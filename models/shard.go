@@ -38,6 +38,8 @@ const (
 	ShardMycatMURMUR     = "mycat_murmur"
 	ShardMycatPaddingMod = "mycat_padding_mod"
 
+	ShardShtOrder = "sht_order"
+
 	// PartitionLength length of partition
 	PartitionLength = 1024
 
@@ -83,6 +85,13 @@ type Shard struct {
 	PadLength string `json:"pad_length"`
 	ModBegin  string `json:"mod_begin"`
 	ModEnd    string `json:"mod_end"`
+
+	// 十荟团订单分表配置
+	ShtOrderShard ShtOrderShard `json:"sht_order_shard"`
+}
+
+type ShtOrderShard struct {
+	SliceToSite map[int][]int `json:"slice_to_site"`
 }
 
 func (s *Shard) verify() error {

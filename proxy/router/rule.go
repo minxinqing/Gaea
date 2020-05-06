@@ -54,6 +54,8 @@ const (
 	MycatMurmurRuleType     = models.ShardMycatMURMUR
 	MycatPaddingModRuleType = models.ShardMycatPaddingMod
 
+	ShtOrderRuleType = models.ShardShtOrder
+
 	MinMonthDaysCount = 28
 	MaxMonthDaysCount = 31
 	MonthsCount       = 12
@@ -89,13 +91,16 @@ type BaseRule struct {
 
 	ruleType        string
 	slices          []string    // not the namespace slices
-	subTableIndexes []int       //subTableIndexes store all the index of sharding sub-table
-	tableToSlice    map[int]int //key is table index, and value is slice index
+	subTableIndexes []int       //subTableIndexes store all the index of sharding sub-table, [201901,201902,201903]
+	tableToSlice    map[int]int //key is table index, and value is slice index{201901:0, 201902:0, 201903:1, 201904:1,}
 	shard           Shard
 
 	// TODO: 目前全局表也借用这两个field存放默认分片的物理DB名
 	mycatDatabases               []string
 	mycatDatabaseToTableIndexMap map[string]int // key: phy db name, value: table index
+
+	// slices和数据库名的映射关系，用于十荟团订单
+	sliceToDatabases map[string]string
 }
 
 type LinkedRule struct {
@@ -146,6 +151,8 @@ func (r *BaseRule) GetSlice(i int) string {
 }
 
 func (r *BaseRule) GetSliceIndexFromTableIndex(i int) int {
+
+	// TODO 修改获取节点
 	sliceIndex, ok := r.tableToSlice[i]
 	if !ok {
 		return -1
@@ -307,6 +314,7 @@ func parseRule(cfg *models.Shard) (*BaseRule, error) {
 	r.mycatDatabaseToTableIndexMap = make(map[string]int)
 
 	subTableIndexs, tableToSlice, shard, err := parseRuleSliceInfos(cfg)
+	fmt.Printf("++++++++\n%+v\r\n--------------", subTableIndexs)
 	if err != nil {
 		return nil, err
 	}
@@ -339,6 +347,18 @@ func parseRule(cfg *models.Shard) (*BaseRule, error) {
 		}
 		for i, db := range r.mycatDatabases {
 			r.mycatDatabaseToTableIndexMap[db] = i
+		}
+	}
+
+	// 十荟团订单分表规则，拼装slice和database映射
+	if cfg.Type == ShtOrderRuleType {
+		r.mycatDatabases, err = getRealDatabases(cfg.Databases)
+		if err != nil {
+			return nil, err
+		}
+
+		for i, db := range r.mycatDatabases {
+			r.sliceToDatabases[db] = cfg.Slices[i]
 		}
 	}
 
@@ -457,6 +477,22 @@ func parseRuleSliceInfos(cfg *models.Shard) ([]int, map[int]int, Shard, error) {
 			return nil, nil, nil, err
 		}
 		shard := NewGlobalTableShard()
+		return subTableIndexs, tableToSlice, shard, nil
+	case ShtOrderRuleType:
+		subTableIndexs, tableToSlice, err := parseShtOrderRuleSliceInfos(cfg.DateRange, cfg.Slices)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+
+		siteToSlice := make(map[int]int)
+		for slice, sites := range cfg.ShtOrderShard.SliceToSite {
+			for _,site :=range sites {
+				siteToSlice[site] = slice
+			}
+		}
+		shard := &ShtOrderShard{SiteToSlice: siteToSlice}
+
 		return subTableIndexs, tableToSlice, shard, nil
 	default:
 		return nil, nil, nil, errors.ErrUnknownRuleType
@@ -584,6 +620,31 @@ func parseGlobalTableRuleSliceInfos(locations []int, slices []string, databases 
 		}
 	}
 
+	return subTableIndexs, tableToSlice, nil
+}
+
+// 解析十荟团订单分片信息
+func parseShtOrderRuleSliceInfos(dateRange []string, slices []string) ([]int, map[int]int, error) {
+	var subTableIndexs []int
+	tableToSlice := make(map[int]int, 0) // 2019010、2019011、2019012...
+
+	//if len(dateRange) != len(slices) {
+	//	return nil, nil, errors.ErrDateRangeCount
+	//}
+	for i := 0; i < len(dateRange); i++ {
+		monthNumbers, err := ParseMonthRange(dateRange[i])
+		if err != nil {
+			return nil, nil, err
+		}
+
+		for _, v := range monthNumbers {
+			for si := range slices {
+				t, _:= strconv.Atoi(strconv.Itoa(v) + strconv.Itoa(si))
+				subTableIndexs = append(subTableIndexs, t)
+				tableToSlice[t] = i
+			}
+		}
+	}
 	return subTableIndexs, tableToSlice, nil
 }
 
