@@ -35,6 +35,7 @@ var ruleVerifyFuncMapping = map[string]func(shard *Shard) error{
 	ShardMycatMURMUR:     verifyMycatMURMURRule,
 	ShardMycatPaddingMod: verifyMycatPaddingRule,
 	ShardGlobal:          verifyGlobalRule,
+	ShtPaymentOrder:      verifyMonthRule,
 }
 
 func verifyHashRule(s *Shard) error {

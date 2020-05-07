@@ -37,6 +37,7 @@ const (
 	ShardMycatString     = "mycat_string"
 	ShardMycatMURMUR     = "mycat_murmur"
 	ShardMycatPaddingMod = "mycat_padding_mod"
+	ShtPaymentOrder      = "sht_payment_order"
 
 	// PartitionLength length of partition
 	PartitionLength = 1024
@@ -83,6 +84,14 @@ type Shard struct {
 	PadLength string `json:"pad_length"`
 	ModBegin  string `json:"mod_begin"`
 	ModEnd    string `json:"mod_end"`
+
+	ShtPaymentOrderShard ShtPaymentOrderShard `json:"sht_payment_order_shard"`
+}
+
+type ShtPaymentOrderShard struct {
+	SnowflakeEpoch uint64 `json:"snowflake_epoch"` // snowflake起始时间戳（豪秒）
+	StartId        uint64 `json:"start_id"`        // 大于此值的ID才启用分表规则
+	DefaultDate    int    `json:"default_date"`    // 默认表日期，不走分表规则的数据都都此表
 }
 
 func (s *Shard) verify() error {
