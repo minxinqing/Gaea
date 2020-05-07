@@ -411,6 +411,8 @@ func (r *ShtPaymentOrderShard) KeyToUint64(key interface{}) (uint64, error) {
 		return val, nil
 	case int64:
 		return uint64(val), nil
+	case string:
+		return strconv.ParseUint(val, 10, 64)
 	}
 
 	return 0, NewKeyError("Illegal snowflake id")
